@@ -48,7 +48,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     
     try {
-      // Simuliamo l'autenticazione con i dati forniti
+      // Autenticazione con email: mondo.felice@outoolk.it e password: wolfstein.97
       if (email === "mondo.felice@outoolk.it" && password === "wolfstein.97") {
         const userData: User = {
           id: "user-1",
