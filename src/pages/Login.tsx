@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Mail, Lock, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, ArrowLeft, Eye, EyeOff, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -28,12 +28,26 @@ const registerSchema = z.object({
   path: ["confirmPassword"],
 });
 
+// Schema di validazione per il form di verifica email
+const verificationSchema = z.object({
+  code: z.string().min(6, { message: "Il codice deve contenere 6 caratteri" }).max(6, { message: "Il codice deve contenere 6 caratteri" }),
+});
+
 type LoginFormValues = z.infer<typeof loginSchema>;
 type RegisterFormValues = z.infer<typeof registerSchema>;
+type VerificationFormValues = z.infer<typeof verificationSchema>;
 
 const Login = () => {
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
-  const { login, register: registerUser, isAuthenticated, loading } = useAuth();
+  const { 
+    login, 
+    register: registerUser, 
+    isAuthenticated, 
+    loading, 
+    pendingVerification, 
+    verifyEmail, 
+    resendVerificationEmail 
+  } = useAuth();
   
   // Form di login
   const loginForm = useForm<LoginFormValues>({
@@ -54,6 +68,14 @@ const Login = () => {
     },
   });
   
+  // Form di verifica
+  const verificationForm = useForm<VerificationFormValues>({
+    resolver: zodResolver(verificationSchema),
+    defaultValues: {
+      code: "",
+    },
+  });
+  
   // Funzione di invio del form di login
   const onLoginSubmit = async (data: LoginFormValues) => {
     await login(data.email, data.password);
@@ -64,11 +86,81 @@ const Login = () => {
     await registerUser(data.email, data.password);
   };
   
+  // Funzione di invio del form di verifica
+  const onVerificationSubmit = async (data: VerificationFormValues) => {
+    await verifyEmail(data.code);
+  };
+  
+  // Funzione per richiedere un nuovo codice di verifica
+  const handleResendCode = async () => {
+    await resendVerificationEmail();
+  };
+  
   // Se l'utente è già autenticato, reindirizza alla dashboard
   if (isAuthenticated && !loading) {
     return <Navigate to="/dashboard" />;
   }
 
+  // Se è in attesa di verifica, mostra il form di verifica
+  if (pendingVerification) {
+    return (
+      <div className="min-h-screen flex flex-col justify-center items-center p-4 bg-background">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="w-full max-w-md bg-card rounded-2xl shadow-soft p-8"
+        >
+          <div className="text-center mb-8">
+            <div className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-blue-600 mb-2">
+              Verifica la tua email
+            </div>
+            <p className="text-muted-foreground">Ti abbiamo inviato un codice di verifica alla tua email</p>
+          </div>
+          
+          <Form {...verificationForm}>
+            <form onSubmit={verificationForm.handleSubmit(onVerificationSubmit)} className="space-y-4">
+              <FormField
+                control={verificationForm.control}
+                name="code"
+                render={({ field }) => (
+                  <FormItem className="space-y-2">
+                    <FormLabel>Codice di verifica</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="123456" 
+                        maxLength={6}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <div className="flex flex-col space-y-2">
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? "Verifica in corso..." : "Verifica"}
+                </Button>
+                
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="w-full" 
+                  onClick={handleResendCode}
+                  disabled={loading}
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Invia nuovo codice
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // Altrimenti mostra il form di login/registrazione
   return (
     <div className="min-h-screen flex flex-col justify-center items-center p-4 bg-background">
       <div className="absolute top-4 left-4">
