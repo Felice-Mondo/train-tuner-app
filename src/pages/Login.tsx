@@ -1,100 +1,21 @@
 
-import { useState } from "react";
 import { Link, Navigate } from "react-router-dom";
-import { motion } from "framer-motion";
-import { Mail, Lock, ArrowLeft, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-
-// Schema di validazione per il form di login
-const loginSchema = z.object({
-  email: z.string().email({ message: "Inserisci un indirizzo email valido" }),
-  password: z.string().min(6, { message: "La password deve contenere almeno 6 caratteri" }),
-});
-
-// Schema di validazione per il form di registrazione
-const registerSchema = z.object({
-  email: z.string().email({ message: "Inserisci un indirizzo email valido" }),
-  password: z.string().min(6, { message: "La password deve contenere almeno 6 caratteri" }),
-  confirmPassword: z.string().min(6, { message: "La password deve contenere almeno 6 caratteri" }),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Le password non corrispondono",
-  path: ["confirmPassword"],
-});
-
-// Schema di validazione per il form di verifica email
-const verificationSchema = z.object({
-  code: z.string().min(6, { message: "Il codice deve contenere 6 caratteri" }).max(6, { message: "Il codice deve contenere 6 caratteri" }),
-});
-
-type LoginFormValues = z.infer<typeof loginSchema>;
-type RegisterFormValues = z.infer<typeof registerSchema>;
-type VerificationFormValues = z.infer<typeof verificationSchema>;
+import LoginContainer from "./login/LoginContainer";
+import LoginHeader from "./login/LoginHeader";
+import LoginForm from "./login/LoginForm";
+import RegisterForm from "./login/RegisterForm";
+import VerificationForm from "./login/VerificationForm";
 
 const Login = () => {
-  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const { 
-    login, 
-    register: registerUser, 
     isAuthenticated, 
     loading, 
-    pendingVerification, 
-    verifyEmail, 
-    resendVerificationEmail 
+    pendingVerification
   } = useAuth();
-  
-  // Form di login
-  const loginForm = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-    },
-  });
-  
-  // Form di registrazione
-  const registerForm = useForm<RegisterFormValues>({
-    resolver: zodResolver(registerSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-      confirmPassword: "",
-    },
-  });
-  
-  // Form di verifica
-  const verificationForm = useForm<VerificationFormValues>({
-    resolver: zodResolver(verificationSchema),
-    defaultValues: {
-      code: "",
-    },
-  });
-  
-  // Funzione di invio del form di login
-  const onLoginSubmit = async (data: LoginFormValues) => {
-    await login(data.email, data.password);
-  };
-  
-  // Funzione di invio del form di registrazione
-  const onRegisterSubmit = async (data: RegisterFormValues) => {
-    await registerUser(data.email, data.password);
-  };
-  
-  // Funzione di invio del form di verifica
-  const onVerificationSubmit = async (data: VerificationFormValues) => {
-    await verifyEmail(data.code);
-  };
-  
-  // Funzione per richiedere un nuovo codice di verifica
-  const handleResendCode = async () => {
-    await resendVerificationEmail();
-  };
   
   // Se l'utente è già autenticato, reindirizza alla dashboard
   if (isAuthenticated && !loading) {
@@ -104,59 +25,9 @@ const Login = () => {
   // Se è in attesa di verifica, mostra il form di verifica
   if (pendingVerification) {
     return (
-      <div className="min-h-screen flex flex-col justify-center items-center p-4 bg-background">
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="w-full max-w-md bg-card rounded-2xl shadow-soft p-8"
-        >
-          <div className="text-center mb-8">
-            <div className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-blue-600 mb-2">
-              Verifica la tua email
-            </div>
-            <p className="text-muted-foreground">Ti abbiamo inviato un codice di verifica alla tua email</p>
-          </div>
-          
-          <Form {...verificationForm}>
-            <form onSubmit={verificationForm.handleSubmit(onVerificationSubmit)} className="space-y-4">
-              <FormField
-                control={verificationForm.control}
-                name="code"
-                render={({ field }) => (
-                  <FormItem className="space-y-2">
-                    <FormLabel>Codice di verifica</FormLabel>
-                    <FormControl>
-                      <Input 
-                        placeholder="123456" 
-                        maxLength={6}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <div className="flex flex-col space-y-2">
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Verifica in corso..." : "Verifica"}
-                </Button>
-                
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  className="w-full" 
-                  onClick={handleResendCode}
-                  disabled={loading}
-                >
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Invia nuovo codice
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </motion.div>
-      </div>
+      <LoginContainer>
+        <VerificationForm />
+      </LoginContainer>
     );
   }
 
@@ -171,17 +42,11 @@ const Login = () => {
         </Button>
       </div>
       
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="w-full max-w-md bg-card rounded-2xl shadow-soft p-8"
-      >
-        <div className="text-center mb-8">
-          <div className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-blue-600 mb-2">
-            TrainSync
-          </div>
-          <p className="text-muted-foreground">Track and optimize your fitness journey</p>
-        </div>
+      <LoginContainer>
+        <LoginHeader 
+          title="TrainSync" 
+          subtitle="Track and optimize your fitness journey" 
+        />
         
         <Tabs defaultValue="login" className="w-full">
           <TabsList className="grid grid-cols-2 mb-6">
@@ -190,162 +55,18 @@ const Login = () => {
           </TabsList>
           
           <TabsContent value="login">
-            <Form {...loginForm}>
-              <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-4">
-                <FormField
-                  control={loginForm.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem className="space-y-2">
-                      <FormLabel>Email</FormLabel>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <FormControl>
-                          <Input 
-                            placeholder="name@example.com" 
-                            className="pl-10"
-                            {...field}
-                          />
-                        </FormControl>
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={loginForm.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem className="space-y-2">
-                      <div className="flex justify-between">
-                        <FormLabel>Password</FormLabel>
-                        <Link to="#" className="text-xs text-primary hover:underline">
-                          Forgot password?
-                        </Link>
-                      </div>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <FormControl>
-                          <Input 
-                            type={isPasswordVisible ? "text" : "password"} 
-                            className="pl-10"
-                            {...field}
-                          />
-                        </FormControl>
-                        <button 
-                          type="button" 
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2"
-                          onClick={() => setIsPasswordVisible(!isPasswordVisible)}
-                        >
-                          {isPasswordVisible ? (
-                            <EyeOff className="h-4 w-4 text-muted-foreground" />
-                          ) : (
-                            <Eye className="h-4 w-4 text-muted-foreground" />
-                          )}
-                        </button>
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Accesso in corso..." : "Sign In"}
-                </Button>
-              </form>
-            </Form>
+            <LoginForm />
           </TabsContent>
           
           <TabsContent value="register">
-            <Form {...registerForm}>
-              <form onSubmit={registerForm.handleSubmit(onRegisterSubmit)} className="space-y-4">
-                <FormField
-                  control={registerForm.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem className="space-y-2">
-                      <FormLabel>Email</FormLabel>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <FormControl>
-                          <Input 
-                            placeholder="name@example.com" 
-                            className="pl-10"
-                            {...field}
-                          />
-                        </FormControl>
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={registerForm.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem className="space-y-2">
-                      <FormLabel>Password</FormLabel>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <FormControl>
-                          <Input 
-                            type={isPasswordVisible ? "text" : "password"} 
-                            className="pl-10"
-                            {...field}
-                          />
-                        </FormControl>
-                        <button 
-                          type="button" 
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2"
-                          onClick={() => setIsPasswordVisible(!isPasswordVisible)}
-                        >
-                          {isPasswordVisible ? (
-                            <EyeOff className="h-4 w-4 text-muted-foreground" />
-                          ) : (
-                            <Eye className="h-4 w-4 text-muted-foreground" />
-                          )}
-                        </button>
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={registerForm.control}
-                  name="confirmPassword"
-                  render={({ field }) => (
-                    <FormItem className="space-y-2">
-                      <FormLabel>Confirm Password</FormLabel>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <FormControl>
-                          <Input 
-                            type={isPasswordVisible ? "text" : "password"} 
-                            className="pl-10"
-                            {...field}
-                          />
-                        </FormControl>
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Registrazione in corso..." : "Create Account"}
-                </Button>
-              </form>
-            </Form>
+            <RegisterForm />
           </TabsContent>
         </Tabs>
         
         <div className="mt-6 text-center text-sm text-muted-foreground">
           <p>By continuing, you agree to our <a href="#" className="text-primary hover:underline">Terms of Service</a> and <a href="#" className="text-primary hover:underline">Privacy Policy</a>.</p>
         </div>
-      </motion.div>
+      </LoginContainer>
     </div>
   );
 };
