@@ -17,7 +17,8 @@ import {
   BarChart,
   Shield,
   Download,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  Bell
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
