@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -18,7 +17,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { useAuth } from "@/contexts/AuthContext";
-import { useMediaQuery } from "@/hooks/use-mobile";
+import { useMobile } from "@/hooks/use-mobile";
 import { 
   Home, 
   Menu, 
@@ -56,9 +55,9 @@ const NavItem = ({ to, icon, label, active, onClick }: NavItemProps) => {
 
 const Navbar = () => {
   const location = useLocation();
-  const isMobile = useMediaQuery("(max-width: 768px)");
+  const isMobile = useMobile();
   const [open, setOpen] = useState(false);
-  const { isAuthenticated, user, logout } = useAuth();
+  const { isAuthenticated, user, logout, profile } = useAuth();
   
   const isPathActive = (path: string) => {
     return location.pathname === path;
@@ -102,7 +101,6 @@ const Navbar = () => {
     },
   ];
 
-  // Mobile navigation with sheet
   if (isMobile) {
     return (
       <header className="sticky top-0 z-40 w-full border-b bg-background">
@@ -194,7 +192,6 @@ const Navbar = () => {
     );
   }
 
-  // Desktop navigation
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background">
       <div className="container flex h-16 items-center justify-between">

@@ -23,5 +23,5 @@ export const useMobile = () => {
   return isMobile;
 };
 
-// Alias for backward compatibility
-export const useMediaQuery = useMobile;
+// Alias for backward compatibility without parameters
+export const useMediaQuery = () => useMobile();

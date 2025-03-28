@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -44,6 +43,59 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // Funzione per recuperare il profilo dell'utente
+  const fetchProfile = async (userId: string) => {
+    try {
+      setLoadingProfile(true);
+      
+      // First check if profile exists
+      const { data: existingProfile, error: checkError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId);
+      
+      if (checkError) {
+        throw checkError;
+      }
+
+      // If profile doesn't exist, create it
+      if (!existingProfile || existingProfile.length === 0) {
+        const { data: userData } = await supabase.auth.getUser();
+        const userEmail = userData?.user?.email || '';
+        
+        const { data: newProfile, error: insertError } = await supabase
+          .from('profiles')
+          .insert([
+            { 
+              id: userId,
+              full_name: userEmail.split('@')[0],
+              avatar_url: null
+            }
+          ])
+          .select('*')
+          .single();
+        
+        if (insertError) {
+          throw insertError;
+        }
+        
+        setProfile(newProfile);
+      } else {
+        // Profile exists, use it
+        setProfile(existingProfile[0]);
+      }
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load user profile. Please try refreshing the page.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingProfile(false);
+    }
+  };
+
   useEffect(() => {
     // Impostare prima il listener per i cambiamenti di autenticazione
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
@@ -75,35 +127,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       subscription.unsubscribe();
     };
   }, []);
-
-  // Funzione per recuperare il profilo dell'utente
-  const fetchProfile = async (userId: string) => {
-    try {
-      setLoadingProfile(true);
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (error) {
-        throw error;
-      }
-
-      if (data) {
-        setProfile(data);
-      }
-    } catch (error) {
-      console.error('Error fetching profile:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load user profile",
-        variant: "destructive",
-      });
-    } finally {
-      setLoadingProfile(false);
-    }
-  };
 
   // Funzione per aggiornare il profilo dell'utente
   const updateProfile = async (updates: Partial<Profile>) => {
