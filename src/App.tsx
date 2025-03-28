@@ -14,6 +14,7 @@ import History from "./pages/History";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { WorkoutsProvider } from "./contexts/WorkoutsContext";
 
 const queryClient = new QueryClient();
 
@@ -34,17 +35,21 @@ const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
 
 // Wrapper per ProtectedRoute che deve essere usato all'interno di AuthProvider
 const AppRoutes = () => {
+  const { isAuthenticated } = useAuth();
+
   return (
     <Routes>
-      <Route path="/" element={<Index />} />
-      <Route path="/login" element={<Login />} />
+      <Route path="/" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Index />} />
+      <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Login />} />
       <Route 
         path="/dashboard" 
         element={
           <ProtectedRoute>
-            <Layout>
-              <Dashboard />
-            </Layout>
+            <WorkoutsProvider>
+              <Layout>
+                <Dashboard />
+              </Layout>
+            </WorkoutsProvider>
           </ProtectedRoute>
         } 
       />
@@ -62,9 +67,11 @@ const AppRoutes = () => {
         path="/workouts" 
         element={
           <ProtectedRoute>
-            <Layout>
-              <Workouts />
-            </Layout>
+            <WorkoutsProvider>
+              <Layout>
+                <Workouts />
+              </Layout>
+            </WorkoutsProvider>
           </ProtectedRoute>
         } 
       />
@@ -72,9 +79,11 @@ const AppRoutes = () => {
         path="/history" 
         element={
           <ProtectedRoute>
-            <Layout>
-              <History />
-            </Layout>
+            <WorkoutsProvider>
+              <Layout>
+                <History />
+              </Layout>
+            </WorkoutsProvider>
           </ProtectedRoute>
         } 
       />

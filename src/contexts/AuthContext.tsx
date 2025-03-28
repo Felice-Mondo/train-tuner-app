@@ -1,27 +1,33 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { Session, User } from "@supabase/supabase-js";
 
-// Definizione del tipo di utente
-export interface User {
+// Definizione del tipo di profilo utente
+export interface Profile {
   id: string;
-  email: string;
-  name?: string;
-  verified: boolean;
+  full_name: string | null;
+  avatar_url: string | null;
 }
 
 // Interfaccia del contesto di autenticazione
 interface AuthContextType {
   user: User | null;
+  profile: Profile | null;
+  session: Session | null;
   loading: boolean;
+  loadingProfile: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  register: (email: string, password: string, userData?: { full_name?: string }) => Promise<void>;
+  logout: () => Promise<void>;
   isAuthenticated: boolean;
   verifyEmail: (code: string) => Promise<void>;
   resendVerificationEmail: () => Promise<void>;
   pendingVerification: boolean;
   setPendingVerification: (pending: boolean) => void;
+  updateProfile: (updates: Partial<Profile>) => Promise<void>;
 }
 
 // Creazione del contesto
@@ -30,118 +36,191 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // Provider del contesto
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingProfile, setLoadingProfile] = useState(false);
   const [pendingVerification, setPendingVerification] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Verifica se l'utente è già autenticato all'avvio dell'app
   useEffect(() => {
-    const checkUser = () => {
-      const storedUser = localStorage.getItem("user");
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
+    // Impostare prima il listener per i cambiamenti di autenticazione
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
+      setSession(currentSession);
+      setUser(currentSession?.user ?? null);
+      
+      if (event === 'SIGNED_IN' && currentSession?.user) {
+        // Utilizzare setTimeout per evitare deadlock con Supabase
+        setTimeout(() => {
+          fetchProfile(currentSession.user.id);
+        }, 0);
+      } else if (event === 'SIGNED_OUT') {
+        setProfile(null);
+      }
+    });
+
+    // Poi verificare se esiste già una sessione
+    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+      setSession(currentSession);
+      setUser(currentSession?.user ?? null);
+      
+      if (currentSession?.user) {
+        fetchProfile(currentSession.user.id);
       }
       setLoading(false);
+    });
+
+    return () => {
+      subscription.unsubscribe();
     };
-    
-    checkUser();
   }, []);
+
+  // Funzione per recuperare il profilo dell'utente
+  const fetchProfile = async (userId: string) => {
+    try {
+      setLoadingProfile(true);
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      if (data) {
+        setProfile(data);
+      }
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load user profile",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingProfile(false);
+    }
+  };
+
+  // Funzione per aggiornare il profilo dell'utente
+  const updateProfile = async (updates: Partial<Profile>) => {
+    if (!user) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to update your profile",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', user.id);
+
+      if (error) {
+        throw error;
+      }
+
+      // Aggiorna il profilo locale
+      if (profile) {
+        setProfile({ ...profile, ...updates });
+      }
+
+      toast({
+        title: "Success",
+        description: "Profile updated successfully",
+      });
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update profile",
+        variant: "destructive",
+      });
+    }
+  };
 
   // Funzione di login
   const login = async (email: string, password: string) => {
     setLoading(true);
     
     try {
-      // Autenticazione con email: mondo.felice@outoolk.it e password: wolfstein.97
-      if (email === "mondo.felice@outoolk.it" && password === "wolfstein.97") {
-        // Verifica se l'utente esiste nello storage
-        const storedUserJson = localStorage.getItem("user");
-        
-        if (storedUserJson) {
-          const storedUser = JSON.parse(storedUserJson);
-          
-          // Verifica se l'account è stato verificato
-          if (!storedUser.verified) {
-            setPendingVerification(true);
-            toast({
-              title: "Account non verificato",
-              description: "Devi verificare il tuo account prima di accedere. Controlla la tua email o richiedi un nuovo codice.",
-              variant: "destructive",
-            });
-            setLoading(false);
-            return;
-          }
-          
-          setUser(storedUser);
-        } else {
-          // Se l'utente non esiste nello storage, crea un nuovo utente verificato (scenario fallback)
-          const userData: User = {
-            id: "user-1",
-            email: "mondo.felice@outoolk.it",
-            name: "Mondo Felice",
-            verified: true
-          };
-          
-          localStorage.setItem("user", JSON.stringify(userData));
-          setUser(userData);
-        }
-        
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data.user) {
         toast({
           title: "Login effettuato",
           description: "Sei stato autenticato con successo.",
         });
         
         navigate("/dashboard");
-      } else {
-        throw new Error("Credenziali non valide");
       }
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Errore di autenticazione",
-        description: error instanceof Error ? error.message : "Si è verificato un errore durante l'accesso",
+        description: error?.message || "Si è verificato un errore durante l'accesso",
         variant: "destructive",
       });
+
+      console.error("Login error:", error);
     } finally {
       setLoading(false);
     }
   };
 
   // Funzione di registrazione
-  const register = async (email: string, password: string) => {
+  const register = async (email: string, password: string, userData?: { full_name?: string }) => {
     setLoading(true);
     
     try {
-      // Per questo esempio, accettiamo solo l'email specificata
-      if (email === "mondo.felice@outoolk.it") {
-        const userData: User = {
-          id: "user-1",
-          email: "mondo.felice@outoolk.it",
-          name: "Mondo Felice",
-          verified: false // L'utente non è verificato al momento della registrazione
-        };
-        
-        localStorage.setItem("user", JSON.stringify(userData));
-        // Non impostare l'utente attivo finché non è verificato
-        // setUser(userData);
-        
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: userData?.full_name || null
+          }
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data.session) {
+        // Se l'utente non deve verificare l'email
+        toast({
+          title: "Registrazione completata",
+          description: "Account creato con successo.",
+        });
+        navigate("/dashboard");
+      } else {
+        // Se l'utente deve verificare l'email
+        setPendingVerification(true);
         toast({
           title: "Registrazione completata",
           description: "Abbiamo inviato un'email di verifica all'indirizzo fornito. Controlla la tua casella di posta.",
         });
-        
-        setPendingVerification(true);
-        // Non navigare alla dashboard fino alla verifica
-        // navigate("/dashboard");
-      } else {
-        throw new Error("Registrazione non consentita con questa email");
       }
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Errore di registrazione",
-        description: error instanceof Error ? error.message : "Si è verificato un errore durante la registrazione",
+        description: error?.message || "Si è verificato un errore durante la registrazione",
         variant: "destructive",
       });
+      console.error("Registration error:", error);
     } finally {
       setLoading(false);
     }
@@ -152,35 +231,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     
     try {
-      // In un'app reale, invieremmo il codice al backend per la verifica
-      // Per questo esempio, accetteremo qualsiasi codice a 6 cifre
+      // In una vera applicazione, questo sarebbe gestito da Supabase attraverso link di conferma email
+      // Questa è solo una simulazione per questa demo
       if (code && code.length === 6 && /^\d+$/.test(code)) {
-        const storedUserJson = localStorage.getItem("user");
+        toast({
+          title: "Email verificata",
+          description: "Il tuo account è stato verificato con successo.",
+        });
         
-        if (storedUserJson) {
-          const storedUser = JSON.parse(storedUserJson);
-          storedUser.verified = true;
-          
-          localStorage.setItem("user", JSON.stringify(storedUser));
-          setUser(storedUser);
-          
-          toast({
-            title: "Email verificata",
-            description: "Il tuo account è stato verificato con successo.",
-          });
-          
-          setPendingVerification(false);
-          navigate("/dashboard");
-        } else {
-          throw new Error("Utente non trovato");
-        }
+        setPendingVerification(false);
+        navigate("/login");
       } else {
         throw new Error("Codice di verifica non valido. Inserisci un codice a 6 cifre.");
       }
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Errore di verifica",
-        description: error instanceof Error ? error.message : "Si è verificato un errore durante la verifica dell'email",
+        description: error?.message || "Si è verificato un errore durante la verifica dell'email",
         variant: "destructive",
       });
     } finally {
@@ -193,16 +260,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     
     try {
-      // In un'app reale, invieremmo una richiesta al backend per un nuovo codice
-      // Per questo esempio, facciamo finta di inviare una nuova email
+      // In una vera applicazione, chiameremmo l'API di Supabase per rinviare l'email
+      // Simulazione per questa demo
       toast({
         title: "Email inviata",
         description: "Abbiamo inviato un nuovo codice di verifica alla tua email.",
       });
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Errore",
-        description: error instanceof Error ? error.message : "Si è verificato un errore durante l'invio dell'email",
+        description: error?.message || "Si è verificato un errore durante l'invio dell'email",
         variant: "destructive",
       });
     } finally {
@@ -211,21 +278,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Funzione di logout
-  const logout = () => {
-    localStorage.removeItem("user");
-    setUser(null);
-    navigate("/login");
-    toast({
-      title: "Logout effettuato",
-      description: "Sei stato disconnesso con successo.",
-    });
+  const logout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        throw error;
+      }
+      
+      // La pulizia dello stato sarà gestita dal listener onAuthStateChange
+      navigate("/login");
+      toast({
+        title: "Logout effettuato",
+        description: "Sei stato disconnesso con successo.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Errore",
+        description: error?.message || "Si è verificato un errore durante il logout",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
     <AuthContext.Provider
       value={{
         user,
+        session,
+        profile,
         loading,
+        loadingProfile,
         login,
         register,
         logout,
@@ -233,7 +316,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         verifyEmail,
         resendVerificationEmail,
         pendingVerification,
-        setPendingVerification
+        setPendingVerification,
+        updateProfile
       }}
     >
       {children}

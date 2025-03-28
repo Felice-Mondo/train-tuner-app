@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 // Schema di validazione per il form di registrazione
 const registerSchema = z.object({
+  fullName: z.string().min(2, { message: "Il nome deve contenere almeno 2 caratteri" }),
   email: z.string().email({ message: "Inserisci un indirizzo email valido" }),
   password: z.string().min(6, { message: "La password deve contenere almeno 6 caratteri" }),
   confirmPassword: z.string().min(6, { message: "La password deve contenere almeno 6 caratteri" }),
@@ -29,6 +30,7 @@ const RegisterForm = () => {
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
+      fullName: "",
       email: "",
       password: "",
       confirmPassword: "",
@@ -37,12 +39,33 @@ const RegisterForm = () => {
   
   // Funzione di invio del form di registrazione
   const onSubmit = async (data: RegisterFormValues) => {
-    await registerUser(data.email, data.password);
+    await registerUser(data.email, data.password, { full_name: data.fullName });
   };
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <FormField
+          control={form.control}
+          name="fullName"
+          render={({ field }) => (
+            <FormItem className="space-y-2">
+              <FormLabel>Nome completo</FormLabel>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <FormControl>
+                  <Input 
+                    placeholder="John Doe" 
+                    className="pl-10"
+                    {...field}
+                  />
+                </FormControl>
+              </div>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      
         <FormField
           control={form.control}
           name="email"
