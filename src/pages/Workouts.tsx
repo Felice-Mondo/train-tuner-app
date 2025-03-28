@@ -7,7 +7,6 @@ import { Plus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import CreateWorkoutForm from "@/components/CreateWorkoutForm";
 import WorkoutsList from "@/components/WorkoutsList";
-import { WorkoutsProvider } from "@/contexts/WorkoutsContext";
 
 const Workouts = () => {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
